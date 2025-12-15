@@ -21,6 +21,8 @@ const defaultSettings: Settings = {
   spamThreshold: 50,
   customBlacklist: [],
   customWhitelist: [],
+  blockAllLinks: false,
+  allowedDomains: ['twitch.tv', 'clips.twitch.tv', 'twitter.com', 'x.com'],
 };
 
 const Layout: React.FC<{ user: TwitchUser; onLogout: () => void }> = ({ user, onLogout }) => (
@@ -75,6 +77,7 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('twitchguard_settings', JSON.stringify(settings));
     twitchChat.setBlacklist(settings.customBlacklist);
+    twitchChat.setLinkOptions(settings.blockAllLinks, settings.allowedDomains);
   }, [settings]);
 
   // Setup chat callbacks

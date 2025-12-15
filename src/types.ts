@@ -48,4 +48,6 @@ export interface Settings {
   spamThreshold: number;
   customBlacklist: string[];
   customWhitelist: string[];
+  blockAllLinks: boolean;
+  allowedDomains: string[];
 }

@@ -17,6 +17,8 @@ class TwitchChatService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private customBlacklist: string[] = [];
+  private blockAllLinks: boolean = false;
+  private allowedDomains: string[] = [];
 
   connect(channel: string, token: string, username: string) {
     this.channel = channel.toLowerCase().replace('#', '');
@@ -84,8 +86,12 @@ class TwitchChatService {
     if (raw.includes('PRIVMSG')) {
       const parsed = this.parseMessage(raw);
       if (parsed && this.onMessage) {
-        // Run spam detection
-        const spamResult = detectSpam(parsed.message, this.customBlacklist);
+        // Run spam detection with link options
+        const spamResult = detectSpam(parsed.message, {
+          customBlacklist: this.customBlacklist,
+          blockAllLinks: this.blockAllLinks,
+          allowedDomains: this.allowedDomains,
+        });
         parsed.isSpam = spamResult.isSpam;
         parsed.spamScore = spamResult.score;
         parsed.spamReasons = spamResult.reasons;
@@ -149,6 +155,11 @@ class TwitchChatService {
 
   setBlacklist(words: string[]) {
     this.customBlacklist = words;
+  }
+
+  setLinkOptions(blockAllLinks: boolean, allowedDomains: string[]) {
+    this.blockAllLinks = blockAllLinks;
+    this.allowedDomains = allowedDomains;
   }
 
   setOnMessage(callback: MessageCallback) {

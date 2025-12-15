@@ -105,9 +105,45 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, setSettings }) =>
         </div>
       </div>
 
+      {/* Link Protection */}
+      <div className="bg-dark-card rounded-xl border border-dark-border p-6">
+        <h2 className="font-semibold mb-4">🔗 Link Protection</h2>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-dark-hover rounded-lg">
+            <div>
+              <div className="font-medium">Block All Links</div>
+              <div className="text-sm text-gray-500">Block all links except allowed domains</div>
+            </div>
+            <Toggle
+              enabled={settings.blockAllLinks}
+              onChange={() => updateSetting('blockAllLinks', !settings.blockAllLinks)}
+            />
+          </div>
+          
+          {settings.blockAllLinks && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Allowed Domains</label>
+              <textarea
+                value={settings.allowedDomains.join('\n')}
+                onChange={(e) => updateSetting('allowedDomains', e.target.value.split('\n').filter(Boolean))}
+                placeholder="twitch.tv&#10;clips.twitch.tv&#10;twitter.com"
+                className="w-full h-24 px-4 py-3 bg-dark-hover border border-dark-border rounded-lg text-white outline-none focus:border-twitch-purple resize-none font-mono text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-2">Links from these domains will be allowed (one per line)</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <p className="text-sm text-yellow-400">
+            ⚠️ URL shorteners (bit.ly, tinyurl, etc.) are always flagged as suspicious
+          </p>
+        </div>
+      </div>
+
       {/* Custom Lists */}
       <div className="bg-dark-card rounded-xl border border-dark-border p-6">
-        <h2 className="font-semibold mb-4">Custom Blacklist</h2>
+        <h2 className="font-semibold mb-4">🚫 Custom Blacklist</h2>
         <textarea
           value={settings.customBlacklist.join('\n')}
           onChange={(e) => updateSetting('customBlacklist', e.target.value.split('\n').filter(Boolean))}
