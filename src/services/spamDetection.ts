@@ -32,6 +32,74 @@ const DEFAULT_SAFE_DOMAINS = [
   'x.com',
 ];
 
+// Crypto scam patterns
+const CRYPTO_SCAM_PATTERNS = [
+  // Giveaway scams
+  /free\s*(crypto|bitcoin|btc|eth|ethereum|nft|token|coin|airdrop)/gi,
+  /crypto\s*giveaway/gi,
+  /(bitcoin|btc|eth|ethereum)\s*giveaway/gi,
+  /giving\s*away\s*(crypto|bitcoin|btc|eth)/gi,
+  /claim\s*(your|free)\s*(crypto|bitcoin|btc|eth|nft|token)/gi,
+  
+  // Investment scams
+  /guaranteed\s*(profit|return|income)/gi,
+  /(\d+)x\s*(return|profit|gains?)/gi,
+  /double\s*your\s*(crypto|bitcoin|btc|eth|money)/gi,
+  /send\s*(\d+)\s*(btc|eth|crypto).*get\s*(\d+)/gi,
+  /invest.*(\d+)%\s*(daily|weekly|monthly)/gi,
+  
+  // Wallet/seed phrase scams
+  /connect\s*(your\s*)?wallet/gi,
+  /validate\s*(your\s*)?wallet/gi,
+  /sync\s*(your\s*)?wallet/gi,
+  /wallet\s*verification/gi,
+  /seed\s*phrase/gi,
+  /private\s*key/gi,
+  /recovery\s*phrase/gi,
+  
+  // Fake platforms
+  /elon\s*musk.*crypto/gi,
+  /musk.*giveaway/gi,
+  /tesla\s*giveaway/gi,
+  
+  // Pump and dump
+  /next\s*100x/gi,
+  /moon\s*soon/gi,
+  /to\s*the\s*moon/gi,
+  /guaranteed\s*moon/gi,
+  /easy\s*money/gi,
+  /get\s*rich\s*quick/gi,
+  
+  // NFT scams
+  /free\s*nft\s*mint/gi,
+  /nft\s*whitelist/gi,
+  /exclusive\s*nft\s*drop/gi,
+  /limited\s*nft/gi,
+];
+
+// Crypto scam keywords
+const CRYPTO_SCAM_KEYWORDS = [
+  'airdrop claim', 'claim airdrop', 'free airdrop',
+  'send btc', 'send eth', 'send crypto',
+  'metamask', 'trustwallet', 'phantom wallet',
+  'presale', 'ico', 'ido',
+  'pump signal', 'trading signal',
+  'forex signal', 'binary option',
+  'mlm crypto', 'crypto mlm',
+  'ponzi', 'pyramid scheme',
+  'guaranteed roi', 'passive income crypto',
+  'dm for details', 'dm me for',
+  'whatsapp', 'telegram group',
+];
+
+// Suspicious crypto domains
+const CRYPTO_SCAM_DOMAINS = [
+  'binance-', 'coinbase-', 'metamask-', 'opensea-',
+  'uniswap-', 'pancakeswap-', 'trustwallet-',
+  '-airdrop', '-giveaway', '-claim',
+  'elonmusk', 'muskcrypto',
+];
+
 export const detectSpam = (
   message: string,
   options: DetectionOptions = {}
@@ -113,6 +181,55 @@ export const detectSpam = (
   if (/(.)\1{7,}/i.test(message)) {
     score += 20;
     reasons.push('Repeated characters');
+  }
+
+  // ===== CRYPTO SCAM DETECTION =====
+  
+  // Check crypto scam patterns
+  for (const pattern of CRYPTO_SCAM_PATTERNS) {
+    if (pattern.test(message)) {
+      score += 45;
+      reasons.push(`Crypto scam pattern detected`);
+      break; // One match is enough
+    }
+  }
+
+  // Check crypto scam keywords
+  for (const keyword of CRYPTO_SCAM_KEYWORDS) {
+    if (lowerMsg.includes(keyword.toLowerCase())) {
+      score += 35;
+      reasons.push(`Crypto scam: ${keyword}`);
+      break;
+    }
+  }
+
+  // Check for suspicious crypto domains in links
+  if (hasLink) {
+    for (const domain of CRYPTO_SCAM_DOMAINS) {
+      if (lowerMsg.includes(domain)) {
+        score += 50;
+        reasons.push(`Fake crypto site: ${domain}`);
+        break;
+      }
+    }
+  }
+
+  // Check for wallet address patterns (potential scam asking to send crypto)
+  const walletPatterns = [
+    /0x[a-fA-F0-9]{40}/g,  // Ethereum address
+    /[13][a-km-zA-HJ-NP-Z1-9]{25,34}/g,  // Bitcoin address
+    /T[A-Za-z1-9]{33}/g,  // Tron address
+  ];
+  
+  for (const pattern of walletPatterns) {
+    if (pattern.test(message)) {
+      // Only flag if combined with suspicious words
+      if (/send|transfer|deposit|invest|double/i.test(message)) {
+        score += 40;
+        reasons.push('Wallet address with suspicious request');
+        break;
+      }
+    }
   }
 
   return {
