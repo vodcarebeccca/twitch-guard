@@ -132,7 +132,17 @@ const App: React.FC = () => {
     setConnectionStatus('disconnected');
   }, []);
 
-
+  // Auto-connect to user's channel
+  const connectToChannel = useCallback(() => {
+    const token = getToken();
+    if (!token || !user) return;
+    
+    const channel = user.login;
+    setCurrentChannel(channel);
+    setMessages([]);
+    setStats({ totalMessages: 0, spamBlocked: 0, timeouts: 0, bans: 0 });
+    twitchChat.connect(channel, token, user.login);
+  }, [user]);
 
   const handleDelete = (msg: ChatMessage) => {
     twitchChat.sendMessage(`/delete ${msg.id}`);
@@ -187,18 +197,6 @@ const App: React.FC = () => {
       </div>
     );
   }
-
-  // Auto-connect to user's channel
-  const connectToChannel = useCallback(() => {
-    const token = getToken();
-    if (!token || !user) return;
-    
-    const channel = user.login;
-    setCurrentChannel(channel);
-    setMessages([]);
-    setStats({ totalMessages: 0, spamBlocked: 0, timeouts: 0, bans: 0 });
-    twitchChat.connect(channel, token, user.login);
-  }, [user]);
 
   return (
     <Routes>
