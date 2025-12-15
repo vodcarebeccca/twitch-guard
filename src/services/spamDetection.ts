@@ -32,6 +32,86 @@ const DEFAULT_SAFE_DOMAINS = [
   'x.com',
 ];
 
+// Unicode/Homoglyph detection
+const UNICODE_RANGES = {
+  cyrillic: /[\u0400-\u04FF]/g,           // Cyrillic (а, е, о, р, с, х)
+  greek: /[\u0370-\u03FF]/g,              // Greek (α, β, γ, etc)
+  fullwidth: /[\uFF00-\uFFEF]/g,          // Fullwidth (ＡＢＣＤ)
+  mathSymbols: /[\u{1D400}-\u{1D7FF}]/gu, // Math symbols (𝕒𝕓𝕔)
+  enclosed: /[\u2460-\u24FF\u2776-\u2793\u{1F100}-\u{1F1FF}]/gu, // Enclosed (①②③, 🅐🅑)
+  combining: /[\u0300-\u036F\u0483-\u0489]/g, // Combining marks (zalgo)
+  invisible: /[\u200B-\u200F\u2060-\u206F\uFEFF]/g, // Zero-width, invisible
+};
+
+// Homoglyph map (lookalike characters)
+const HOMOGLYPHS: Record<string, string> = {
+  'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'х': 'x', 'у': 'y', // Cyrillic
+  'і': 'i', 'ј': 'j', 'ѕ': 's', 'һ': 'h', 'ԁ': 'd', 'ԛ': 'q', 'ԝ': 'w',
+  'α': 'a', 'β': 'b', 'ε': 'e', 'ι': 'i', 'κ': 'k', 'ν': 'n', 'ο': 'o', // Greek
+  'ρ': 'p', 'τ': 't', 'υ': 'u', 'χ': 'x',
+  '０': '0', '１': '1', '２': '2', '３': '3', '４': '4', // Fullwidth numbers
+  '５': '5', '６': '6', '７': '7', '８': '8', '９': '9',
+};
+
+// Normalize text by replacing homoglyphs
+const normalizeText = (text: string): string => {
+  let normalized = text.toLowerCase();
+  for (const [homoglyph, ascii] of Object.entries(HOMOGLYPHS)) {
+    normalized = normalized.replace(new RegExp(homoglyph, 'g'), ascii);
+  }
+  // Remove invisible characters
+  normalized = normalized.replace(UNICODE_RANGES.invisible, '');
+  return normalized;
+};
+
+// Check for suspicious unicode usage
+const detectSuspiciousUnicode = (text: string): { suspicious: boolean; reasons: string[] } => {
+  const reasons: string[] = [];
+  let suspicious = false;
+
+  // Check for mixed scripts (Latin + Cyrillic/Greek in same word)
+  const words = text.split(/\s+/);
+  for (const word of words) {
+    const hasLatin = /[a-zA-Z]/.test(word);
+    const hasCyrillic = UNICODE_RANGES.cyrillic.test(word);
+    const hasGreek = UNICODE_RANGES.greek.test(word);
+    
+    if (hasLatin && (hasCyrillic || hasGreek)) {
+      suspicious = true;
+      reasons.push('Mixed scripts (possible impersonation)');
+      break;
+    }
+  }
+
+  // Check for excessive combining marks (zalgo)
+  const combiningCount = (text.match(UNICODE_RANGES.combining) || []).length;
+  if (combiningCount > 5) {
+    suspicious = true;
+    reasons.push('Zalgo text detected');
+  }
+
+  // Check for invisible characters
+  if (UNICODE_RANGES.invisible.test(text)) {
+    suspicious = true;
+    reasons.push('Invisible characters detected');
+  }
+
+  // Check for fullwidth spam
+  const fullwidthCount = (text.match(UNICODE_RANGES.fullwidth) || []).length;
+  if (fullwidthCount > text.length * 0.3) {
+    suspicious = true;
+    reasons.push('Fullwidth character spam');
+  }
+
+  // Check for math symbol abuse
+  if (UNICODE_RANGES.mathSymbols.test(text)) {
+    suspicious = true;
+    reasons.push('Fancy unicode text');
+  }
+
+  return { suspicious, reasons };
+};
+
 // Crypto scam patterns
 const CRYPTO_SCAM_PATTERNS = [
   // Giveaway scams
@@ -114,6 +194,23 @@ export const detectSpam = (
   let score = 0;
   let hasLink = false;
   const lowerMsg = message.toLowerCase();
+  const normalizedMsg = normalizeText(message);
+
+  // ===== UNICODE DETECTION =====
+  const unicodeCheck = detectSuspiciousUnicode(message);
+  if (unicodeCheck.suspicious) {
+    score += 30;
+    reasons.push(...unicodeCheck.reasons);
+  }
+
+  // Check normalized text against spam keywords (catches homoglyph bypass)
+  for (const keyword of SPAM_KEYWORDS) {
+    if (normalizedMsg.includes(keyword.toLowerCase()) && !lowerMsg.includes(keyword.toLowerCase())) {
+      score += 40;
+      reasons.push(`Homoglyph bypass: ${keyword}`);
+      break;
+    }
+  }
 
   // Check for links
   for (const pattern of LINK_PATTERNS) {

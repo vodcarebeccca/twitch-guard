@@ -5,7 +5,7 @@ import LoginPage from './pages/LoginPage';
 import CallbackPage from './pages/CallbackPage';
 import DashboardPage from './pages/DashboardPage';
 import ChatPage from './pages/ChatPage';
-import SettingsPage from './pages/SettingsPage';
+import ModerationPage from './pages/ModerationPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import { getToken, getUser, clearAuth } from './services/twitchAuth';
 import { validateToken } from './services/twitchApi';
@@ -132,20 +132,7 @@ const App: React.FC = () => {
     setConnectionStatus('disconnected');
   }, []);
 
-  const startMonitoring = useCallback((channel: string) => {
-    const token = getToken();
-    if (!token || !user) return;
-    
-    setCurrentChannel(channel);
-    setMessages([]);
-    setStats({ totalMessages: 0, spamBlocked: 0, timeouts: 0, bans: 0 });
-    twitchChat.connect(channel, token, user.login);
-  }, [user]);
 
-  const stopMonitoring = useCallback(() => {
-    twitchChat.disconnect();
-    setCurrentChannel('');
-  }, []);
 
   const handleDelete = (msg: ChatMessage) => {
     twitchChat.sendMessage(`/delete ${msg.id}`);
@@ -201,7 +188,17 @@ const App: React.FC = () => {
     );
   }
 
-  const isMonitoring = connectionStatus === 'connected' || connectionStatus === 'connecting';
+  // Auto-connect to user's channel
+  const connectToChannel = useCallback(() => {
+    const token = getToken();
+    if (!token || !user) return;
+    
+    const channel = user.login;
+    setCurrentChannel(channel);
+    setMessages([]);
+    setStats({ totalMessages: 0, spamBlocked: 0, timeouts: 0, bans: 0 });
+    twitchChat.connect(channel, token, user.login);
+  }, [user]);
 
   return (
     <Routes>
@@ -218,18 +215,16 @@ const App: React.FC = () => {
             <DashboardPage
               user={user}
               stats={stats}
-              isMonitoring={isMonitoring}
               connectionStatus={connectionStatus}
               currentChannel={currentChannel}
-              onStartMonitoring={startMonitoring}
-              onStopMonitoring={stopMonitoring}
+              onConnect={connectToChannel}
             />
           } />
           <Route path="/chat" element={
             <ChatPage
               messages={messages}
               moderationLog={moderationLog}
-              isMonitoring={isMonitoring}
+              isMonitoring={connectionStatus === 'connected'}
               connectionStatus={connectionStatus}
               currentChannel={currentChannel}
               onDelete={handleDelete}
@@ -238,22 +233,10 @@ const App: React.FC = () => {
             />
           } />
           <Route path="/moderation" element={
-            <ChatPage
-              messages={messages.filter(m => m.isSpam)}
-              moderationLog={moderationLog}
-              isMonitoring={isMonitoring}
-              connectionStatus={connectionStatus}
-              currentChannel={currentChannel}
-              onDelete={handleDelete}
-              onTimeout={handleTimeout}
-              onBan={handleBan}
-            />
+            <ModerationPage settings={settings} setSettings={setSettings} />
           } />
           <Route path="/analytics" element={
             <AnalyticsPage stats={stats} moderationLog={moderationLog} />
-          } />
-          <Route path="/settings" element={
-            <SettingsPage settings={settings} setSettings={setSettings} />
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

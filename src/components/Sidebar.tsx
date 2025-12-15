@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, MessageSquare, Shield, BarChart3, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Shield, BarChart3, LogOut, ExternalLink } from 'lucide-react';
 import TwitchLogo from './TwitchLogo';
 import { TwitchUser } from '../types';
 
@@ -11,10 +11,9 @@ interface SidebarProps {
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/chat', icon: MessageSquare, label: 'Live Chat' },
-  { to: '/moderation', icon: Shield, label: 'Moderation' },
+  { to: '/moderation', icon: Shield, label: 'Chat Moderation' },
+  { to: '/chat', icon: MessageSquare, label: 'Logs' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
@@ -52,28 +51,37 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
         ))}
       </nav>
 
+      {/* External Links */}
+      <div className="px-3 pb-2">
+        <a 
+          href="https://github.com/vodcarebeccca/twitch-guard" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-dark-hover hover:text-white transition-all"
+        >
+          <ExternalLink size={20} />
+          Documentation
+        </a>
+      </div>
+
       {/* User Profile */}
       <div className="p-4 border-t border-dark-border">
         <div className="flex items-center gap-3">
           <img 
             src={user.profile_image_url} 
             alt={user.display_name}
-            className="w-10 h-10 rounded-full"
+            className="w-10 h-10 rounded-full ring-2 ring-twitch-purple/30"
           />
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-sm truncate">{user.display_name}</div>
-            <div className="text-xs text-green-400 flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse-slow" />
-              Connected
-            </div>
+            <button
+              onClick={onLogout}
+              className="text-xs text-gray-400 hover:text-red-400 flex items-center gap-1 transition-colors"
+            >
+              <LogOut size={12} />
+              Sign out
+            </button>
           </div>
-          <button
-            onClick={onLogout}
-            className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-            title="Logout"
-          >
-            <LogOut size={18} />
-          </button>
         </div>
       </div>
     </aside>

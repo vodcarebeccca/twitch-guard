@@ -1,181 +1,237 @@
-import React, { useState } from 'react';
-import { MessageSquare, ShieldOff, Clock, CheckCircle, Play, Square, Wifi, WifiOff, Loader2 } from 'lucide-react';
-import StatsCard from '../components/StatsCard';
+import React, { useEffect } from 'react';
+import { 
+  MessageSquare, ShieldOff, Clock, Ban, 
+  Wifi, WifiOff, Loader2, Activity, Users, Eye
+} from 'lucide-react';
 import { Stats, TwitchUser, ConnectionStatus } from '../types';
 
 interface DashboardPageProps {
   user: TwitchUser;
   stats: Stats;
-  isMonitoring: boolean;
   connectionStatus: ConnectionStatus;
   currentChannel: string;
-  onStartMonitoring: (channel: string) => void;
-  onStopMonitoring: () => void;
+  onConnect: () => void;
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({
   user,
   stats,
-  isMonitoring,
   connectionStatus,
   currentChannel,
-  onStartMonitoring,
-  onStopMonitoring,
+  onConnect,
 }) => {
-  const [channel, setChannel] = useState(user.login);
+  // Auto-connect on mount
+  useEffect(() => {
+    if (connectionStatus === 'disconnected') {
+      onConnect();
+    }
+  }, []);
 
-  const getStatusInfo = () => {
+  const getStatusBadge = () => {
     switch (connectionStatus) {
       case 'connected':
-        return { icon: <Wifi size={16} />, text: `Connected to #${currentChannel}`, color: 'text-green-400', bg: 'bg-green-400' };
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-500 rounded-full">
+            <Wifi size={16} />
+            <span className="text-sm font-medium">Connected to #{currentChannel}</span>
+          </div>
+        );
       case 'connecting':
-        return { icon: <Loader2 size={16} className="animate-spin" />, text: 'Connecting...', color: 'text-yellow-400', bg: 'bg-yellow-400' };
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 text-yellow-500 rounded-full">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-sm font-medium">Connecting...</span>
+          </div>
+        );
       case 'error':
-        return { icon: <WifiOff size={16} />, text: 'Connection error', color: 'text-red-400', bg: 'bg-red-400' };
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-500 rounded-full">
+            <WifiOff size={16} />
+            <span className="text-sm font-medium">Connection Error</span>
+          </div>
+        );
       default:
-        return { icon: <WifiOff size={16} />, text: 'Disconnected', color: 'text-gray-400', bg: 'bg-gray-400' };
+        return (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-500/10 text-gray-500 rounded-full">
+            <WifiOff size={16} />
+            <span className="text-sm font-medium">Disconnected</span>
+          </div>
+        );
     }
   };
 
-  const statusInfo = getStatusInfo();
-
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-gray-400">Monitor your chat moderation in real-time</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-gray-500 dark:text-gray-400">Welcome back, {user.display_name}</p>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-dark-card border border-dark-border ${statusInfo.color}`}>
-          {statusInfo.icon}
-          <span className="text-sm">{statusInfo.text}</span>
-        </div>
-      </div>
-
-      {/* Channel Input */}
-      <div className="bg-dark-card rounded-xl p-6 border border-dark-border">
-        <h2 className="font-semibold mb-4 flex items-center gap-2">
-          🔗 Connect to Channel
-        </h2>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
-            placeholder="Enter Twitch channel name"
-            disabled={isMonitoring}
-            className="flex-1 px-4 py-3 bg-dark-hover border-2 border-dark-border rounded-lg text-white outline-none focus:border-twitch-purple transition-colors disabled:opacity-50"
-          />
-          <button
-            onClick={() => isMonitoring ? onStopMonitoring() : onStartMonitoring(channel)}
-            disabled={connectionStatus === 'connecting'}
-            className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 ${
-              isMonitoring
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-twitch-purple hover:bg-twitch-purple-dark text-white'
-            }`}
-          >
-            {connectionStatus === 'connecting' ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : isMonitoring ? (
-              <Square size={18} />
-            ) : (
-              <Play size={18} fill="white" />
-            )}
-            {connectionStatus === 'connecting' ? 'Connecting...' : isMonitoring ? 'Stop' : 'Start Monitoring'}
-          </button>
-        </div>
-        {connectionStatus === 'connected' && (
-          <div className="mt-3 text-sm text-green-400 flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse-slow" />
-            Live monitoring #{currentChannel}
-          </div>
-        )}
-        {connectionStatus === 'error' && (
-          <div className="mt-3 text-sm text-red-400 flex items-center gap-2">
-            <span className="w-2 h-2 bg-red-400 rounded-full" />
-            Connection failed. Check your token or try again.
-          </div>
-        )}
+        {getStatusBadge()}
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
           icon={<MessageSquare size={20} />}
-          value={stats.totalMessages}
           label="Total Messages"
-          color="#9146FF"
+          value={stats.totalMessages}
+          color="purple"
         />
-        <StatsCard
+        <StatCard
           icon={<ShieldOff size={20} />}
-          value={stats.spamBlocked}
           label="Spam Blocked"
-          color="#FF4D4D"
+          value={stats.spamBlocked}
+          color="red"
         />
-        <StatsCard
+        <StatCard
           icon={<Clock size={20} />}
-          value={stats.timeouts}
           label="Timeouts"
-          color="#FFCA28"
+          value={stats.timeouts}
+          color="yellow"
         />
-        <StatsCard
-          icon={<CheckCircle size={20} />}
-          value={stats.bans}
+        <StatCard
+          icon={<Ban size={20} />}
           label="Bans"
-          color="#00F593"
+          value={stats.bans}
+          color="green"
         />
       </div>
 
-      {/* Quick Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            🚀 Getting Started
-          </h3>
-          <ol className="space-y-2 text-sm text-gray-400">
-            <li className="flex gap-2">
-              <span className="text-twitch-purple font-bold">1.</span>
-              Enter your Twitch channel name above
-            </li>
-            <li className="flex gap-2">
-              <span className="text-twitch-purple font-bold">2.</span>
-              Click Start Monitoring to connect
-            </li>
-            <li className="flex gap-2">
-              <span className="text-twitch-purple font-bold">3.</span>
-              Spam will be detected automatically
-            </li>
-            <li className="flex gap-2">
-              <span className="text-twitch-purple font-bold">4.</span>
-              Enable Auto-Delete in Settings for automatic moderation
-            </li>
-          </ol>
+      {/* Channel Info Card */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-4">
+          <img 
+            src={user.profile_image_url} 
+            alt={user.display_name}
+            className="w-16 h-16 rounded-full"
+          />
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{user.display_name}</h2>
+            <p className="text-gray-500">@{user.login}</p>
+          </div>
+          {connectionStatus === 'disconnected' && (
+            <button
+              onClick={onConnect}
+              className="px-4 py-2 bg-twitch-purple text-white rounded-lg hover:bg-twitch-purple-dark transition-colors flex items-center gap-2"
+            >
+              <Wifi size={18} />
+              Connect
+            </button>
+          )}
         </div>
 
-        <div className="bg-dark-card rounded-xl p-5 border border-dark-border">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            🕐 Recent Activity
-          </h3>
+        {connectionStatus === 'connected' && (
+          <div className="mt-6 grid grid-cols-3 gap-4 pt-6 border-t border-gray-100 dark:border-dark-border">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 text-gray-500 mb-1">
+                <Activity size={16} />
+                <span className="text-sm">Status</span>
+              </div>
+              <p className="font-semibold text-green-500">Live Monitoring</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 text-gray-500 mb-1">
+                <Eye size={16} />
+                <span className="text-sm">Channel</span>
+              </div>
+              <p className="font-semibold text-gray-900 dark:text-white">#{currentChannel}</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 text-gray-500 mb-1">
+                <Users size={16} />
+                <span className="text-sm">Protection</span>
+              </div>
+              <p className="font-semibold text-twitch-purple">Active</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Protection Summary</h3>
+          <div className="space-y-3">
+            <ProgressBar label="Spam Detection" value={100} color="purple" />
+            <ProgressBar label="Link Protection" value={100} color="blue" />
+            <ProgressBar label="Crypto Scam Filter" value={100} color="green" />
+            <ProgressBar label="Unicode Protection" value={100} color="yellow" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
           {stats.spamBlocked > 0 ? (
             <div className="space-y-3">
-              <div className="flex items-center gap-3 text-sm">
-                <span className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">🗑️</span>
-                <div className="flex-1">
-                  <p>Spam deleted</p>
-                  <p className="text-gray-500">Just now</p>
-                </div>
-              </div>
+              <ActivityItem icon="🛡️" text="Spam protection active" time="Now" />
+              <ActivityItem icon="🔗" text="Link filter enabled" time="Now" />
+              <ActivityItem icon="🚫" text={`${stats.spamBlocked} spam messages blocked`} time="Session" />
             </div>
           ) : (
-            <p className="text-sm text-gray-500">
-              No activity yet. Start monitoring to see activity.
-            </p>
+            <p className="text-gray-500 text-sm">No activity yet. Monitoring your chat...</p>
           )}
         </div>
       </div>
     </div>
   );
 };
+
+// Helper Components
+const StatCard: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  color: 'purple' | 'red' | 'yellow' | 'green';
+}> = ({ icon, label, value, color }) => {
+  const colors = {
+    purple: 'bg-purple-500/10 text-purple-500',
+    red: 'bg-red-500/10 text-red-500',
+    yellow: 'bg-yellow-500/10 text-yellow-500',
+    green: 'bg-green-500/10 text-green-500',
+  };
+
+  return (
+    <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors[color]} mb-3`}>
+        {icon}
+      </div>
+      <p className="text-2xl font-bold text-gray-900 dark:text-white">{value.toLocaleString()}</p>
+      <p className="text-sm text-gray-500">{label}</p>
+    </div>
+  );
+};
+
+const ProgressBar: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => {
+  const colors: Record<string, string> = {
+    purple: 'bg-purple-500',
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    yellow: 'bg-yellow-500',
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span className="text-gray-600 dark:text-gray-400">{label}</span>
+        <span className="text-gray-900 dark:text-white font-medium">{value}%</span>
+      </div>
+      <div className="h-2 bg-gray-100 dark:bg-dark-hover rounded-full overflow-hidden">
+        <div className={`h-full ${colors[color]} rounded-full transition-all duration-500`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+};
+
+const ActivityItem: React.FC<{ icon: string; text: string; time: string }> = ({ icon, text, time }) => (
+  <div className="flex items-center gap-3">
+    <span className="text-lg">{icon}</span>
+    <div className="flex-1">
+      <p className="text-sm text-gray-900 dark:text-white">{text}</p>
+    </div>
+    <span className="text-xs text-gray-400">{time}</span>
+  </div>
+);
 
 export default DashboardPage;
