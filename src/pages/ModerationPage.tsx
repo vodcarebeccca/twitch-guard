@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Ban, Type, Link2, Star, RotateCcw, MessageSquare, 
-  Settings, Save, Shield, Zap, Globe, Hash
+  Settings, Save, Shield, Zap, Globe
 } from 'lucide-react';
 import { Settings as SettingsType } from '../types';
 
