@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { MessageSquare, ShieldOff, Clock, CheckCircle, Play, Square } from 'lucide-react';
+import { MessageSquare, ShieldOff, Clock, CheckCircle, Play, Square, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import StatsCard from '../components/StatsCard';
-import { Stats, TwitchUser } from '../types';
+import { Stats, TwitchUser, ConnectionStatus } from '../types';
 
 interface DashboardPageProps {
   user: TwitchUser;
   stats: Stats;
   isMonitoring: boolean;
+  connectionStatus: ConnectionStatus;
+  currentChannel: string;
   onStartMonitoring: (channel: string) => void;
   onStopMonitoring: () => void;
 }
@@ -15,16 +17,39 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   user,
   stats,
   isMonitoring,
+  connectionStatus,
+  currentChannel,
   onStartMonitoring,
   onStopMonitoring,
 }) => {
   const [channel, setChannel] = useState(user.login);
 
+  const getStatusInfo = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return { icon: <Wifi size={16} />, text: `Connected to #${currentChannel}`, color: 'text-green-400', bg: 'bg-green-400' };
+      case 'connecting':
+        return { icon: <Loader2 size={16} className="animate-spin" />, text: 'Connecting...', color: 'text-yellow-400', bg: 'bg-yellow-400' };
+      case 'error':
+        return { icon: <WifiOff size={16} />, text: 'Connection error', color: 'text-red-400', bg: 'bg-red-400' };
+      default:
+        return { icon: <WifiOff size={16} />, text: 'Disconnected', color: 'text-gray-400', bg: 'bg-gray-400' };
+    }
+  };
+
+  const statusInfo = getStatusInfo();
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-gray-400">Monitor your chat moderation in real-time</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-gray-400">Monitor your chat moderation in real-time</p>
+        </div>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-dark-card border border-dark-border ${statusInfo.color}`}>
+          {statusInfo.icon}
+          <span className="text-sm">{statusInfo.text}</span>
+        </div>
       </div>
 
       {/* Channel Input */}
@@ -43,20 +68,33 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           />
           <button
             onClick={() => isMonitoring ? onStopMonitoring() : onStartMonitoring(channel)}
-            className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all hover:-translate-y-0.5 ${
+            disabled={connectionStatus === 'connecting'}
+            className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 ${
               isMonitoring
                 ? 'bg-red-500 hover:bg-red-600 text-white'
                 : 'bg-twitch-purple hover:bg-twitch-purple-dark text-white'
             }`}
           >
-            {isMonitoring ? <Square size={18} /> : <Play size={18} fill="white" />}
-            {isMonitoring ? 'Stop' : 'Start Monitoring'}
+            {connectionStatus === 'connecting' ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : isMonitoring ? (
+              <Square size={18} />
+            ) : (
+              <Play size={18} fill="white" />
+            )}
+            {connectionStatus === 'connecting' ? 'Connecting...' : isMonitoring ? 'Stop' : 'Start Monitoring'}
           </button>
         </div>
-        {isMonitoring && (
+        {connectionStatus === 'connected' && (
           <div className="mt-3 text-sm text-green-400 flex items-center gap-2">
             <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse-slow" />
-            Monitoring #{channel}
+            Live monitoring #{currentChannel}
+          </div>
+        )}
+        {connectionStatus === 'error' && (
+          <div className="mt-3 text-sm text-red-400 flex items-center gap-2">
+            <span className="w-2 h-2 bg-red-400 rounded-full" />
+            Connection failed. Check your token or try again.
           </div>
         )}
       </div>

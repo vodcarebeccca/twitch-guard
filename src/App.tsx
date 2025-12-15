@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
@@ -6,10 +6,11 @@ import CallbackPage from './pages/CallbackPage';
 import DashboardPage from './pages/DashboardPage';
 import ChatPage from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import { getToken, getUser, clearAuth } from './services/twitchAuth';
 import { validateToken } from './services/twitchApi';
-import { detectSpam } from './services/spamDetection';
-import { TwitchUser, ChatMessage, ModerationAction, Stats, Settings } from './types';
+import { twitchChat } from './services/twitchChat';
+import { TwitchUser, ChatMessage, ModerationAction, Stats, Settings, ConnectionStatus } from './types';
 import TwitchLogo from './components/TwitchLogo';
 
 const defaultSettings: Settings = {
@@ -35,18 +36,22 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<TwitchUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [currentChannel, setCurrentChannel] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [moderationLog, setModerationLog] = useState<ModerationAction[]>([]);
   const [stats, setStats] = useState<Stats>({ totalMessages: 0, spamBlocked: 0, timeouts: 0, bans: 0 });
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const statsRef = useRef(stats);
+
+  // Keep statsRef updated
+  useEffect(() => { statsRef.current = stats; }, [stats]);
 
   // Check auth on mount
   useEffect(() => {
     const checkAuth = async () => {
       const token = getToken();
       const savedUser = getUser();
-      
       if (token && savedUser) {
         const isValid = await validateToken();
         if (isValid) {
@@ -61,16 +66,51 @@ const App: React.FC = () => {
     checkAuth();
   }, []);
 
-  // Load settings
+  // Load/save settings
   useEffect(() => {
     const saved = localStorage.getItem('twitchguard_settings');
     if (saved) setSettings(JSON.parse(saved));
   }, []);
 
-  // Save settings
   useEffect(() => {
     localStorage.setItem('twitchguard_settings', JSON.stringify(settings));
+    twitchChat.setBlacklist(settings.customBlacklist);
   }, [settings]);
+
+  // Setup chat callbacks
+  useEffect(() => {
+    twitchChat.setOnMessage((msg: ChatMessage) => {
+      setMessages(prev => [...prev.slice(-199), msg]);
+      setStats(prev => ({
+        ...prev,
+        totalMessages: prev.totalMessages + 1,
+        spamBlocked: prev.spamBlocked + (msg.isSpam ? 1 : 0),
+      }));
+
+      // Auto moderation
+      if (msg.isSpam && settings.autoDelete) {
+        const action: ModerationAction = {
+          id: `action-${Date.now()}`,
+          type: 'delete',
+          username: msg.displayName,
+          reason: msg.spamReasons.join(', ') || 'Spam detected',
+          timestamp: new Date(),
+          automatic: true,
+        };
+        setModerationLog(prev => [action, ...prev.slice(0, 99)]);
+        // Send delete command
+        twitchChat.sendMessage(`/delete ${msg.id}`);
+      }
+    });
+
+    twitchChat.setOnStatus((status: ConnectionStatus) => {
+      setConnectionStatus(status);
+    });
+
+    return () => {
+      twitchChat.disconnect();
+    };
+  }, [settings.autoDelete]);
 
   const handleLogin = useCallback(() => {
     const savedUser = getUser();
@@ -81,81 +121,31 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogout = useCallback(() => {
+    twitchChat.disconnect();
     clearAuth();
     setUser(null);
     setIsAuthenticated(false);
-    setIsMonitoring(false);
     setMessages([]);
+    setConnectionStatus('disconnected');
   }, []);
 
-  // Simulated chat monitoring (replace with tmi.js in production)
-  const startMonitoring = useCallback((_channel: string) => {
-    setIsMonitoring(true);
+  const startMonitoring = useCallback((channel: string) => {
+    const token = getToken();
+    if (!token || !user) return;
+    
+    setCurrentChannel(channel);
     setMessages([]);
     setStats({ totalMessages: 0, spamBlocked: 0, timeouts: 0, bans: 0 });
-
-    // Demo: simulate incoming messages
-    const demoMessages = [
-      { user: 'CoolGamer', msg: 'This stream is amazing! PogChamp', color: '#FF6B6B' },
-      { user: 'SpamBot99', msg: '🔥 FREE FOLLOWERS! Visit bit.ly/scam123 🔥', color: '#888' },
-      { user: 'VIPViewer', msg: 'Just subscribed! Love your content ❤️', color: '#9146FF' },
-      { user: 'NightOwl', msg: 'What game are you playing next?', color: '#4ECDC4' },
-      { user: 'LinkSpammer', msg: 'Check my bio for FREE VIEWERS!!!', color: '#666' },
-    ];
-
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i >= demoMessages.length) {
-        i = 0;
-      }
-      const demo = demoMessages[i];
-      const spamResult = detectSpam(demo.msg, settings.customBlacklist);
-      
-      const newMsg: ChatMessage = {
-        id: `msg-${Date.now()}-${Math.random()}`,
-        userId: `user-${i}`,
-        username: demo.user.toLowerCase(),
-        displayName: demo.user,
-        message: demo.msg,
-        color: demo.color,
-        badges: {},
-        timestamp: new Date(),
-        isSpam: spamResult.isSpam,
-        spamScore: spamResult.score,
-        spamReasons: spamResult.reasons,
-      };
-
-      setMessages(prev => [...prev.slice(-99), newMsg]);
-      setStats(prev => ({
-        ...prev,
-        totalMessages: prev.totalMessages + 1,
-        spamBlocked: prev.spamBlocked + (spamResult.isSpam ? 1 : 0),
-      }));
-
-      // Auto actions
-      if (spamResult.isSpam && settings.autoDelete) {
-        const action: ModerationAction = {
-          id: `action-${Date.now()}`,
-          type: 'delete',
-          username: demo.user,
-          reason: spamResult.reasons.join(', '),
-          timestamp: new Date(),
-          automatic: true,
-        };
-        setModerationLog(prev => [action, ...prev.slice(0, 49)]);
-      }
-
-      i++;
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [settings]);
+    twitchChat.connect(channel, token, user.login);
+  }, [user]);
 
   const stopMonitoring = useCallback(() => {
-    setIsMonitoring(false);
+    twitchChat.disconnect();
+    setCurrentChannel('');
   }, []);
 
   const handleDelete = (msg: ChatMessage) => {
+    twitchChat.sendMessage(`/delete ${msg.id}`);
     const action: ModerationAction = {
       id: `action-${Date.now()}`,
       type: 'delete',
@@ -164,32 +154,34 @@ const App: React.FC = () => {
       timestamp: new Date(),
       automatic: false,
     };
-    setModerationLog(prev => [action, ...prev.slice(0, 49)]);
+    setModerationLog(prev => [action, ...prev.slice(0, 99)]);
   };
 
   const handleTimeout = (msg: ChatMessage) => {
+    twitchChat.sendMessage(`/timeout ${msg.username} ${settings.timeoutDuration}`);
     const action: ModerationAction = {
       id: `action-${Date.now()}`,
       type: 'timeout',
       username: msg.displayName,
-      reason: 'Manual timeout',
+      reason: `Timeout ${settings.timeoutDuration}s`,
       timestamp: new Date(),
       automatic: false,
     };
-    setModerationLog(prev => [action, ...prev.slice(0, 49)]);
+    setModerationLog(prev => [action, ...prev.slice(0, 99)]);
     setStats(prev => ({ ...prev, timeouts: prev.timeouts + 1 }));
   };
 
   const handleBan = (msg: ChatMessage) => {
+    twitchChat.sendMessage(`/ban ${msg.username}`);
     const action: ModerationAction = {
       id: `action-${Date.now()}`,
       type: 'ban',
       username: msg.displayName,
-      reason: 'Manual ban',
+      reason: 'Permanent ban',
       timestamp: new Date(),
       automatic: false,
     };
-    setModerationLog(prev => [action, ...prev.slice(0, 49)]);
+    setModerationLog(prev => [action, ...prev.slice(0, 99)]);
     setStats(prev => ({ ...prev, bans: prev.bans + 1 }));
   };
 
@@ -205,6 +197,8 @@ const App: React.FC = () => {
       </div>
     );
   }
+
+  const isMonitoring = connectionStatus === 'connected' || connectionStatus === 'connecting';
 
   return (
     <Routes>
@@ -222,6 +216,8 @@ const App: React.FC = () => {
               user={user}
               stats={stats}
               isMonitoring={isMonitoring}
+              connectionStatus={connectionStatus}
+              currentChannel={currentChannel}
               onStartMonitoring={startMonitoring}
               onStopMonitoring={stopMonitoring}
             />
@@ -231,6 +227,8 @@ const App: React.FC = () => {
               messages={messages}
               moderationLog={moderationLog}
               isMonitoring={isMonitoring}
+              connectionStatus={connectionStatus}
+              currentChannel={currentChannel}
               onDelete={handleDelete}
               onTimeout={handleTimeout}
               onBan={handleBan}
@@ -241,16 +239,15 @@ const App: React.FC = () => {
               messages={messages.filter(m => m.isSpam)}
               moderationLog={moderationLog}
               isMonitoring={isMonitoring}
+              connectionStatus={connectionStatus}
+              currentChannel={currentChannel}
               onDelete={handleDelete}
               onTimeout={handleTimeout}
               onBan={handleBan}
             />
           } />
           <Route path="/analytics" element={
-            <div className="space-y-6">
-              <h1 className="text-2xl font-bold">Analytics</h1>
-              <p className="text-gray-400">Coming soon...</p>
-            </div>
+            <AnalyticsPage stats={stats} moderationLog={moderationLog} />
           } />
           <Route path="/settings" element={
             <SettingsPage settings={settings} setSettings={setSettings} />

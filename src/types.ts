@@ -8,7 +8,8 @@ export interface TwitchUser {
 
 export interface ChatMessage {
   id: string;
-  userId: string;
+  oderId?: string;
+  userId?: string;
   username: string;
   displayName: string;
   message: string;
@@ -20,6 +21,8 @@ export interface ChatMessage {
   spamReasons: string[];
   deleted?: boolean;
 }
+
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 export interface ModerationAction {
   id: string;
